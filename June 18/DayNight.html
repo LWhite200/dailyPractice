@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Canvas Full Template</title>
+  <style>
+    canvas {
+      background: #ffffff;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    let gameState = "start"; // "start", "playing", "gameover"
+    let startTime = null;
+    let score = 0;
+    let highScore = Number(localStorage.getItem("highScore")) || 0;
+    let jumpPressed = false;
+
+    const circleRadius = 30;
+    let circleX = 400;
+    let circleY = 300;
+
+    const mouse = { x: 0, y: 0 };
+
+    const buttons = {
+      play: { x: 325, y: 275, width: 150, height: 50 },
+      menu: { x: 325, y: 350, width: 150, height: 50 }
+    };
+
+    // Player Object
+    const player = {
+      x : 0,
+      y : 0,
+      yVelocity : 0,
+      radius : 2,
+      timeLastJump : 0,
+      neededTimeJumpElapsed : 0.25, //seconds
+      jumpPower : 14,
+      gravity : 0.9, 
+      betweenPipes : false,
+
+      updatePlayer(jumpPressed) {
+        if (jumpPressed) {
+          const now = performance.now();
+          const elapsed = (now - this.timeLastJump) / 1000;
+
+          if (elapsed > this.neededTimeJumpElapsed) {
+            this.yVelocity = -this.jumpPower;
+            this.timeLastJump = now; // Add this to track jumps!
+          }
+        }
+
+        this.yVelocity += this.gravity;
+        this.y += this.yVelocity;     
+        
+        if (this.y >= HEIGHT) this.y = HEIGHT;
+      },
+
+      drawPlayer() {
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const tubeManager = {
+      tubeSpawnSeconds : 2.5,        // use as space between tubes
+      tubeWidth : 120,
+      spaceBetween : 110,         // between top and bottom
+      randomHeightRange : 225,    // variation how high or low
+      
+      tube: { x: 0, y: 0, length: 0, facesUp: false },
+      tubes: [],
+      
+      tubeMoveRate : 2,
+      lastTubeSpawnTime : 0,
+
+      spawnTube() {
+        // Must spawn 2, the top and bottom
+        // Height is 600, +- randomheightRange from 300
+        const plusOrMinus = Math.random() < 0.5 ? -1 : 1;
+        const center = 300 + (plusOrMinus * Math.random() * this.randomHeightRange);
+
+
+        const topLength = center - tubeManager.spaceBetween;
+        const bottomStart = center + tubeManager.spaceBetween;
+        const bottomLength = 600 - bottomStart;
+
+        const top = {
+          x: 800 + this.tubeWidth,
+          y: 0,
+          length: topLength,
+          facesUp: false
+        };
+
+        const bottom = {
+          x: 800 + this.tubeWidth,
+          y: bottomStart,
+          length: bottomLength,
+          facesUp: true
+        };
+
+        this.tubes.push(top);
+        this.tubes.push(bottom);
+
+      },
+
+      updateTubes() {
+        for (let tube of this.tubes) {
+          tube.x -= this.tubeMoveRate;
+          if (tube.x < -this.tubeWidth * 2) {
+            this.tubes = this.tubes.filter(tube => tube.x >= -this.tubeWidth * 2); // removes the out of bounds tube
+
+          }
+        }
+      },
+
+      checkCollision(player ) {
+        betweenAny = false;
+        for (const tube of this.tubes) {
+          startX = tube.x;
+          startY = tube.y;
+          endX = startX + this.tubeWidth;
+          endY = startY + tube.length;
+
+          if (player.x > startX && player.x < endX) {
+            betweenAny = true;
+            if (player.y > startY && player.y < endY) {
+              gameState = "gameover"
+            }
+            else if (!player.betweenPipes) {
+              player.betweenPipes = true;
+              score++;
+            }
+          }
+        }
+        if (!betweenAny && player.betweenPipes) {
+          player.betweenPipes = false;
+        }
+      },
+
+      drawTubes() {
+        for (let tube of this.tubes) {
+          ctx.fillStyle = "blue";
+          ctx.fillRect(tube.x, tube.y, this.tubeWidth, tube.length);
+        }
+      }
+    }
+    // end of tube manager ---------
+
+
+
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousedown", () => {
+      if (gameState === "start") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        }
+      } else if (gameState === "gameover") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        } else if (inButton(mouse, buttons.menu)) {
+          gameState = "start";
+        }
+      } else if (gameState === "playing") {
+        const dx = mouse.x - circleX;
+        const dy = mouse.y - circleY;
+        if (Math.sqrt(dx * dx + dy * dy) <= circleRadius) {
+          moveCircle();
+        }
+      }
+    });
+
+    function inButton(pos, btn) {
+      return (
+        pos.x >= btn.x &&
+        pos.x <= btn.x + btn.width &&
+        pos.y >= btn.y &&
+        pos.y <= btn.y + btn.height
+      );
+    }
+
+    function startGame() {
+      score = 0;
+      startTime = performance.now();
+      moveCircle();
+      gameState = "playing";
+
+      // Reset player state
+      player.x = 100;
+      player.y = HEIGHT / 2;
+      player.yVelocity = 0;
+      player.radius = 20;
+      player.timeLastJump = performance.now();
+
+      // Clear and reset tubes
+      tubeManager.tubes = [];
+    }
+
+
+    function moveCircle() {
+      circleX = Math.random() * (WIDTH - 2 * circleRadius) + circleRadius;
+      circleY = Math.random() * (HEIGHT - 2 * circleRadius) + circleRadius;
+    }
+
+    function drawStartScreen() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      ctx.fillStyle = "black";
+      ctx.font = "36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Start The Program", WIDTH / 2, 150);
+      ctx.font = "24px Arial";
+      ctx.fillText(`All-Time High Score: ${highScore}`, WIDTH / 2, 200);
+
+      drawButton(buttons.play, "Start Game");
+    }
+
+
+// input handling
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    jumpPressed = true;
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space") {
+    jumpPressed = false;
+  }
+});
+
+
+    /* 
+        Main game loop
+        --------------
+        // -- update the tubes
+        // -- update the player
+        // -- check collision
+        // -- update score
+        // -- draw 1. player. 2. tubes
+
+    */
+    function drawGameScreen() {
+      // Tube spawn controls
+      const now = performance.now();
+      if ((now - tubeManager.lastTubeSpawnTime) / 1000 >= tubeManager.tubeSpawnSeconds) {
+        tubeManager.spawnTube();
+        tubeManager.lastTubeSpawnTime = now;
+      }
+
+      // update and draw things
+      tubeManager.updateTubes();
+      player.updatePlayer(jumpPressed);
+      tubeManager.checkCollision(player); // will also update score
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // clear the screen  
+      player.drawPlayer();
+      tubeManager.drawTubes();      
+
+      // Draw text for score
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`Score: ${score}`, 400, 30);
+    }
+
+
+
+
+    function drawGameOverScreen() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      ctx.fillStyle = "black";
+      ctx.font = "36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over!", WIDTH / 2, 120);
+      ctx.fillText(`Your Score: ${score}`, WIDTH / 2, 180);
+
+      drawButton(buttons.play, "Play Again");
+      drawButton(buttons.menu, "Main Menu");
+    }
+
+
+
+    function drawButton(btn, text) {
+      ctx.fillStyle = "gray";
+      ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(text, btn.x + btn.width / 2, btn.y + 32);
+    }
+
+
+
+    // GameState looping.
+    function gameLoop() {
+       if (gameState === "playing") {
+        drawGameScreen();
+      } else if (gameState === "gameover") {
+        drawGameOverScreen();
+      }
+      else {
+        drawStartScreen();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+
+
+</body>
+</html>

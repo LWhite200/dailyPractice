@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Canvas Full Template</title>
+  <style>
+    canvas {
+      background: #ffffff;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let lastKey = "";
+    let circleX = 400, circleY = 300;
+    const circleRadius = 30;
+
+    const keys = {};
+    const mouse = { x: 0, y: 0, clicked: false };
+    const button = { x: 600, y: 100, width: 150, height: 50, clicked: false };
+
+    const startTime = performance.now();
+
+    // FPS tracking
+    let lastFrameTime = performance.now();
+    let fps = 0;
+
+    const image = new Image();
+    image.src = "example.png"; // Add a sample image file
+
+    // Input handlers
+    window.addEventListener("keydown", (e) => {
+      keys[e.key] = true;
+      if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
+        lastKey = e.key;
+      }
+    });
+
+    window.addEventListener("keyup", (e) => keys[e.key] = false);
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousedown", () => mouse.clicked = true);
+    canvas.addEventListener("mouseup", () => {
+      mouse.clicked = false;
+      // Button click
+      if (
+        mouse.x >= button.x && mouse.x <= button.x + button.width &&
+        mouse.y >= button.y && mouse.y <= button.y + button.height
+      ) {
+        button.clicked = !button.clicked;
+      }
+    });
+
+    function draw() {
+      const now = performance.now();
+      const delta = now - lastFrameTime;
+      lastFrameTime = now;
+      fps = 1000 / delta;
+
+      const elapsed = Math.min((now - startTime) / 1000, 10);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Move circle
+      if (keys["ArrowLeft"]) circleX -= 5;
+      if (keys["ArrowRight"]) circleX += 5;
+      if (keys["ArrowUp"]) circleY -= 5;
+      if (keys["ArrowDown"]) circleY += 5;
+
+      // Draw rectangle
+      ctx.fillStyle = "blue";
+      ctx.fillRect(100, 100, 120, 80);
+
+      // Draw circle
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(circleX, circleY, circleRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw image
+      if (image.complete) {
+        ctx.drawImage(image, 300, 300, 100, 100);
+      }
+
+      // Draw button
+      ctx.fillStyle = "gray";
+      ctx.fillRect(button.x, button.y, button.width, button.height);
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.fillText("Click Me", button.x + 20, button.y + 32);
+
+      // Draw text
+      ctx.font = "18px Arial";
+      ctx.fillText(`FPS: ${fps.toFixed(1)}`, 20, 30);
+      ctx.fillText(`Timer: ${elapsed.toFixed(1)}/10 sec`, 20, 55);
+      ctx.fillText(`Key Pressed: ${lastKey}`, 20, 80);
+      ctx.fillText(`Button clicked: ${button.clicked}`, 20, 105);
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
+</body>
+</html>

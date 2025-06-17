@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Canvas Full Template</title>
+  <style>
+    canvas {
+      background: #ffffff;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    let gameState = "start"; // "start", "playing", "gameover"
+    let startTime = null;
+    let score = 0;
+    let highScore = Number(localStorage.getItem("highScore")) || 0;
+
+    const circleRadius = 30;
+    let circleX = 400;
+    let circleY = 300;
+
+    const mouse = { x: 0, y: 0 };
+
+    const buttons = {
+      play: { x: 325, y: 275, width: 150, height: 50 },
+      menu: { x: 325, y: 350, width: 150, height: 50 }
+    };
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousedown", () => {
+      if (gameState === "start") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        }
+      } else if (gameState === "gameover") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        } else if (inButton(mouse, buttons.menu)) {
+          gameState = "start";
+        }
+      } else if (gameState === "playing") {
+        const dx = mouse.x - circleX;
+        const dy = mouse.y - circleY;
+        if (Math.sqrt(dx * dx + dy * dy) <= circleRadius) {
+          score++;
+          moveCircle();
+        }
+      }
+    });
+
+    function inButton(pos, btn) {
+      return (
+        pos.x >= btn.x &&
+        pos.x <= btn.x + btn.width &&
+        pos.y >= btn.y &&
+        pos.y <= btn.y + btn.height
+      );
+    }
+
+    function startGame() {
+      score = 0;
+      startTime = performance.now();
+      moveCircle();
+      gameState = "playing";
+    }
+
+    function moveCircle() {
+      circleX = Math.random() * (WIDTH - 2 * circleRadius) + circleRadius;
+      circleY = Math.random() * (HEIGHT - 2 * circleRadius) + circleRadius;
+    }
+
+    function drawStartScreen() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      ctx.fillStyle = "black";
+      ctx.font = "36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Click the Circle!", WIDTH / 2, 150);
+      ctx.font = "24px Arial";
+      ctx.fillText(`All-Time High Score: ${highScore}`, WIDTH / 2, 200);
+
+      drawButton(buttons.play, "Start Game");
+    }
+
+    function drawGameScreen() {
+      const now = performance.now();
+      const elapsed = (now - startTime) / 1000;
+
+      if (elapsed >= 20) {
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem("highScore", highScore);
+        }
+        gameState = "gameover";
+        return;
+      }
+
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText(`Score: ${score}`, 20, 30);
+      ctx.fillText(`Time Left: ${(20 - elapsed).toFixed(1)}s`, 20, 60);
+
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(circleX, circleY, circleRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawGameOverScreen() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      ctx.fillStyle = "black";
+      ctx.font = "36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over!", WIDTH / 2, 120);
+      ctx.fillText(`Your Score: ${score}`, WIDTH / 2, 180);
+
+      drawButton(buttons.play, "Play Again");
+      drawButton(buttons.menu, "Main Menu");
+    }
+
+    function drawButton(btn, text) {
+      ctx.fillStyle = "gray";
+      ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(text, btn.x + btn.width / 2, btn.y + 32);
+    }
+
+    function gameLoop() {
+      if (gameState === "start") {
+        drawStartScreen();
+      } else if (gameState === "playing") {
+        drawGameScreen();
+      } else if (gameState === "gameover") {
+        drawGameOverScreen();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+
+
+</body>
+</html>
