@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Canvas Full Template</title>
+  <style>
+    canvas {
+      background: #ffffff;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script src="world.js"></script>
+  <script src="graphics.js"></script>
+  <script>
+    /*
+      Procedurally generated 2d cave game
+      ---day night cycle, environment reacts
+      ---Collect things during the day, defend from monsters at night
+      ---Mystery Dungeon-like rooms
+    */
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    let debugNumRooms = -1;
+    const worldLength = 51;
+    let world = Array.from({ length: worldLength }, () => Array(worldLength).fill(0)); // 2d array   0 = wall, 1 = ground, 2 = ground with gold
+    const maxRoomLength = 15;
+    const minRoomLength = 4;
+
+
+    let gameState = "start"; // "start", "playing", "gameover"
+    let startTime = null;
+    let score = 0;
+    let highScore = Number(localStorage.getItem("highScore")) || 0;
+    let jumpPressed = false;
+
+    const mouse = { x: 0, y: 0 };
+
+    const buttons = {
+      play: { x: 325, y: 275, width: 150, height: 50 },
+      menu: { x: 325, y: 350, width: 150, height: 50 }
+    };
+
+    let playerX = Math.floor(worldLength / 2);
+    let playerY = Math.floor(worldLength / 2);
+    let pvx = playerX;
+    let pvy = playerY;
+    let lastMoveTime = 0;
+    let timeBetweenSteps = 0.125; // seconds
+    const tileSize = 44;
+    let playerExists = false;
+
+    //---------------------------------------------------------------
+    // Input section
+    // input handling
+    window.addEventListener("keydown", (e) => {
+      const pressedTime = performance.now();
+
+      if (
+        (pressedTime - lastMoveTime) / 1000 > timeBetweenSteps && pvx === playerX && pvy === playerY && ["KeyD", "KeyA", "KeyS", "KeyW"].includes(e.code) ) {
+        if (e.code === "KeyD" && playerX + 1 < worldLength) pvx = playerX + 1;
+        else if (e.code === "KeyA" && playerX - 1 >= 0) pvx = playerX - 1;
+        else if (e.code === "KeyS" && playerY + 1 < worldLength) pvy = playerY + 1;
+        else if (e.code === "KeyW" && playerY - 1 >= 0) pvy = playerY - 1;
+        lastMoveTime = pressedTime;
+      }
+    });
+
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousedown", () => {
+      if (gameState === "start") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        }
+      } else if (gameState === "gameover") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        } else if (inButton(mouse, buttons.menu)) {
+          gameState = "start";
+        }
+      } 
+    });
+
+    function inButton(pos, btn) {
+      return (
+        pos.x >= btn.x &&
+        pos.x <= btn.x + btn.width &&
+        pos.y >= btn.y &&
+        pos.y <= btn.y + btn.height
+      );
+    }
+
+    // input handling
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        jumpPressed = true;
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        jumpPressed = false;
+      }
+    });
+
+
+
+    // Game start and world instantiation
+    function startGame() {
+      score = 0;
+      startTime = performance.now();
+      gameState = "playing";
+
+      // Create world
+      createWorld(); 
+    }
+
+    // GameState looping.
+    function gameLoop() {
+       if (gameState === "playing") {
+        drawGameScreen();
+      } else if (gameState === "gameover") {
+        drawGameOverScreen();
+      }
+      else {
+        drawStartScreen();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+
+
+</body>
+</html>
