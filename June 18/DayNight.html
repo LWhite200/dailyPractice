@@ -16,6 +16,13 @@
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <script>
+    /*
+      Procedurally generated 2d cave game
+      ---day night cycle, environment reacts
+      ---Collect things during the day, defend from monsters at night
+      ---Mystery Dungeon-like rooms
+    */
+
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
@@ -28,10 +35,6 @@
     let highScore = Number(localStorage.getItem("highScore")) || 0;
     let jumpPressed = false;
 
-    const circleRadius = 30;
-    let circleX = 400;
-    let circleY = 300;
-
     const mouse = { x: 0, y: 0 };
 
     const buttons = {
@@ -39,129 +42,50 @@
       menu: { x: 325, y: 350, width: 150, height: 50 }
     };
 
-    // Player Object
-    const player = {
-      x : 0,
-      y : 0,
-      yVelocity : 0,
-      radius : 2,
-      timeLastJump : 0,
-      neededTimeJumpElapsed : 0.25, //seconds
-      jumpPower : 14,
-      gravity : 0.9, 
-      betweenPipes : false,
+    //--------------------------
+    const worldLength = 51;
+    let world = Array.from({ length: worldLength }, () => Array(worldLength).fill(0)); // 2d array   0 = wall, 1 = ground, 2 = ground with gold
+    const maxRoomLength = 15;
+    const minRoomLength = 4;
 
-      updatePlayer(jumpPressed) {
-        if (jumpPressed) {
-          const now = performance.now();
-          const elapsed = (now - this.timeLastJump) / 1000;
+    let playerX = Math.floor(worldLength / 2);
+    let playerY = Math.floor(worldLength / 2);
+    let lastMoveTime = 0;
+    let timeBetweenSteps = 0.125; // seconds
+    const tileSize = 50;
 
-          if (elapsed > this.neededTimeJumpElapsed) {
-            this.yVelocity = -this.jumpPower;
-            this.timeLastJump = now; // Add this to track jumps!
-          }
-        }
-
-        this.yVelocity += this.gravity;
-        this.y += this.yVelocity;     
-        
-        if (this.y >= HEIGHT) this.y = HEIGHT;
-      },
-
-      drawPlayer() {
-        ctx.fillStyle = "red";
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    const tubeManager = {
-      tubeSpawnSeconds : 2.5,        // use as space between tubes
-      tubeWidth : 120,
-      spaceBetween : 110,         // between top and bottom
-      randomHeightRange : 225,    // variation how high or low
-      
-      tube: { x: 0, y: 0, length: 0, facesUp: false },
-      tubes: [],
-      
-      tubeMoveRate : 2,
-      lastTubeSpawnTime : 0,
-
-      spawnTube() {
-        // Must spawn 2, the top and bottom
-        // Height is 600, +- randomheightRange from 300
-        const plusOrMinus = Math.random() < 0.5 ? -1 : 1;
-        const center = 300 + (plusOrMinus * Math.random() * this.randomHeightRange);
-
-
-        const topLength = center - tubeManager.spaceBetween;
-        const bottomStart = center + tubeManager.spaceBetween;
-        const bottomLength = 600 - bottomStart;
-
-        const top = {
-          x: 800 + this.tubeWidth,
-          y: 0,
-          length: topLength,
-          facesUp: false
-        };
-
-        const bottom = {
-          x: 800 + this.tubeWidth,
-          y: bottomStart,
-          length: bottomLength,
-          facesUp: true
-        };
-
-        this.tubes.push(top);
-        this.tubes.push(bottom);
-
-      },
-
-      updateTubes() {
-        for (let tube of this.tubes) {
-          tube.x -= this.tubeMoveRate;
-          if (tube.x < -this.tubeWidth * 2) {
-            this.tubes = this.tubes.filter(tube => tube.x >= -this.tubeWidth * 2); // removes the out of bounds tube
-
-          }
-        }
-      },
-
-      checkCollision(player ) {
-        betweenAny = false;
-        for (const tube of this.tubes) {
-          startX = tube.x;
-          startY = tube.y;
-          endX = startX + this.tubeWidth;
-          endY = startY + tube.length;
-
-          if (player.x > startX && player.x < endX) {
-            betweenAny = true;
-            if (player.y > startY && player.y < endY) {
-              gameState = "gameover"
-            }
-            else if (!player.betweenPipes) {
-              player.betweenPipes = true;
-              score++;
-            }
-          }
-        }
-        if (!betweenAny && player.betweenPipes) {
-          player.betweenPipes = false;
-        }
-      },
-
-      drawTubes() {
-        for (let tube of this.tubes) {
-          ctx.fillStyle = "blue";
-          ctx.fillRect(tube.x, tube.y, this.tubeWidth, tube.length);
+    function drawWorld() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      for (let i = 0; i < worldLength; i++) {
+        for (let j = 0; j < worldLength; j++) {
+          if (world[i][j] === 0) ctx.fillStyle = "black";
+          else if (world[i][j] === 1) ctx.fillStyle = "blue";
+          else if (world[i][j] === 2) ctx.fillStyle = "cyan";
+          ctx.fillRect((i - playerX + Math.floor(WIDTH / tileSize / 2)) * tileSize, (j - playerY + Math.floor(HEIGHT / tileSize / 2)) * tileSize, tileSize - 1, tileSize - 1);
         }
       }
+
+      ctx.fillStyle = "red";
+      ctx.fillRect(Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2), tileSize, tileSize);
+
     }
-    // end of tube manager ---------
+    
 
+    // input handling
+    window.addEventListener("keydown", (e) => {
+      const pressedTime = performance.now();
 
+      if (
+        (pressedTime - lastMoveTime) / 1000 > timeBetweenSteps && ["KeyD", "KeyA", "KeyS", "KeyW"].includes(e.code) ) {
+        if (e.code === "KeyD" && playerX + 1 < worldLength) playerX += 1;
+        else if (e.code === "KeyA" && playerX - 1 >= 0) playerX -= 1;
+        else if (e.code === "KeyS" && playerY + 1 < worldLength) playerY += 1;
+        else if (e.code === "KeyW" && playerY - 1 >= 0) playerY -= 1;
+        lastMoveTime = pressedTime;
+        console.log(`${playerX} | ${playerY}`);
+      }
+    });
 
 
     canvas.addEventListener("mousemove", (e) => {
@@ -181,13 +105,7 @@
         } else if (inButton(mouse, buttons.menu)) {
           gameState = "start";
         }
-      } else if (gameState === "playing") {
-        const dx = mouse.x - circleX;
-        const dy = mouse.y - circleY;
-        if (Math.sqrt(dx * dx + dy * dy) <= circleRadius) {
-          moveCircle();
-        }
-      }
+      } 
     });
 
     function inButton(pos, btn) {
@@ -199,28 +117,7 @@
       );
     }
 
-    function startGame() {
-      score = 0;
-      startTime = performance.now();
-      moveCircle();
-      gameState = "playing";
-
-      // Reset player state
-      player.x = 100;
-      player.y = HEIGHT / 2;
-      player.yVelocity = 0;
-      player.radius = 20;
-      player.timeLastJump = performance.now();
-
-      // Clear and reset tubes
-      tubeManager.tubes = [];
-    }
-
-
-    function moveCircle() {
-      circleX = Math.random() * (WIDTH - 2 * circleRadius) + circleRadius;
-      circleY = Math.random() * (HEIGHT - 2 * circleRadius) + circleRadius;
-    }
+    
 
     function drawStartScreen() {
       ctx.fillStyle = "#ffffff";
@@ -237,51 +134,35 @@
     }
 
 
-// input handling
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    jumpPressed = true;
-  }
-});
+    // input handling
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        jumpPressed = true;
+      }
+    });
 
-window.addEventListener("keyup", (e) => {
-  if (e.code === "Space") {
-    jumpPressed = false;
-  }
-});
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        jumpPressed = false;
+      }
+    });
 
 
     /* 
-        Main game loop
-        --------------
-        // -- update the tubes
-        // -- update the player
-        // -- check collision
-        // -- update score
-        // -- draw 1. player. 2. tubes
-
+      ==============================================
     */
     function drawGameScreen() {
       // Tube spawn controls
       const now = performance.now();
-      if ((now - tubeManager.lastTubeSpawnTime) / 1000 >= tubeManager.tubeSpawnSeconds) {
-        tubeManager.spawnTube();
-        tubeManager.lastTubeSpawnTime = now;
-      }
 
       // update and draw things
-      tubeManager.updateTubes();
-      player.updatePlayer(jumpPressed);
-      tubeManager.checkCollision(player); // will also update score
-      ctx.clearRect(0, 0, canvas.width, canvas.height); // clear the screen  
-      player.drawPlayer();
-      tubeManager.drawTubes();      
+      drawWorld();     
 
       // Draw text for score
-      ctx.fillStyle = "black";
-      ctx.font = "24px Arial";
+      ctx.fillStyle = "pink";
+      ctx.font = "32px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(`Score: ${score}`, 400, 30);
+      ctx.fillText(`rooms: ${debugNumRooms}`, 400, 30);
     }
 
 
@@ -301,8 +182,6 @@ window.addEventListener("keyup", (e) => {
       drawButton(buttons.menu, "Main Menu");
     }
 
-
-
     function drawButton(btn, text) {
       ctx.fillStyle = "gray";
       ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
@@ -312,6 +191,76 @@ window.addEventListener("keyup", (e) => {
       ctx.fillText(text, btn.x + btn.width / 2, btn.y + 32);
     }
 
+
+    
+    let debugNumRooms = -1;
+
+    function createWorld() {
+      let half = Math.floor(worldLength / 2);
+      let SFC = 10; // space from center 
+
+      function createRoom(x, y, rL, rW) {
+        for (let i=x; i<rL+x; i++) {
+          for (let j=y; j<rW+y; j++) {
+            if (i < 0 || j < 0 || i > worldLength || j > worldLength) continue;
+            world[i][j] = (Math.floor(Math.random() * 50) === 0) ? 2 : 1; // 1 in 50 chance of having an item on it.
+          }
+        }
+      }
+
+      numRooms = Math.floor(Math.random() * 5) + 1;
+      quadrants = [1, 2, 3, 4, 5];
+
+      debugNumRooms = numRooms
+
+      for (let room = 0; room < numRooms; room++) {
+        let quadIndex = Math.floor(Math.random() * quadrants.length);
+        let q = quadrants.splice(quadIndex, 1)[0];
+
+        let x = half, y = half;
+        if (q !== 5) {
+            function rP(end, space) { 
+                return Math.floor(Math.random() * (end - 2*space)) + space;
+            }
+            let offX = rP(half, SFC);
+            let offY = rP(half, SFC); 
+
+            if (q === 1) { x += offX; y -= offY; }
+            if (q === 2) { x -= offX; y -= offY; }
+            if (q === 3) { x -= offX; y += offY; }
+            if (q === 4) { x += offX; y += offY; }
+
+            let rL = Math.floor(Math.random() * (maxRoomLength - minRoomLength + 1)) + minRoomLength;
+            let rW = Math.floor(Math.random() * (maxRoomLength - minRoomLength + 1)) + minRoomLength;
+            createRoom(x, y, rL, rW);
+        }
+        else {
+          // The center cave
+          let rL = Math.floor(Math.random() * (maxRoomLength - minRoomLength + 1)) + minRoomLength;
+          let rW = Math.floor(Math.random() * (maxRoomLength - minRoomLength + 1)) + minRoomLength;
+          x -= Math.floor(rL / 2), y -= Math.floor(rW / 2);
+          createRoom(x, y, rL, rW);
+        }
+      }
+    }
+
+
+
+
+    // Game start and world instantiation
+    function startGame() {
+      score = 0;
+      startTime = performance.now();
+      gameState = "playing";
+
+      // Create world
+      createWorld(); // ← important!
+
+    }
+
+
+
+  
 
 
     // GameState looping.

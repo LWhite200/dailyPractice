@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Canvas Full Template</title>
+  <style>
+    canvas {
+      background:rgb(255, 255, 255);
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #00ff15;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script src="graphics.js"></script>
+  <script>
+    /*
+      Procedurally generated 2d cave game
+      ---day night cycle, environment reacts
+      ---Collect things during the day, defend from monsters at night
+      ---Mystery Dungeon-like rooms
+    */
+
+    const mouse = { x: 0, y: 0 };
+
+    const buttons = {
+      play: { x: 325, y: 275, width: 150, height: 50 },
+      menu: { x: 325, y: 350, width: 150, height: 50 }
+    };
+
+    const moveSpeed = 25;
+    let gameState = "start";
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const HALF = Math.floor(HEIGHT / 2);
+
+    let paddleX = 20, paddleY = 125;
+    let score = 0;
+
+    let playerX = paddleX, playerY = HALF;
+    let enemyX = WIDTH - paddleX * 2, enemyY = HALF;
+
+    
+    //---------------------------------------------------------------
+    // Input section
+    // input handling
+    window.addEventListener("keydown", (e) => {
+      if (["KeyD", "KeyA", "KeyS", "KeyW"].includes(e.code) ) {
+        if (e.code === "KeyS" && playerY < (HEIGHT - paddleY)) playerY += moveSpeed;
+        else if (e.code === "KeyW" && playerY > 0) playerY -= moveSpeed;
+      }
+    });
+
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousedown", () => {
+      if (gameState === "start") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        }
+      } else if (gameState === "gameover") {
+        if (inButton(mouse, buttons.play)) {
+          startGame();
+        } else if (inButton(mouse, buttons.menu)) {
+          gameState = "start";
+        }
+      } 
+    });
+
+    function inButton(pos, btn) {
+      return (
+        pos.x >= btn.x &&
+        pos.x <= btn.x + btn.width &&
+        pos.y >= btn.y &&
+        pos.y <= btn.y + btn.height
+      );
+    }
+
+    //Game start and world instantiation
+    function startGame() {
+      score = 0;
+      startTime = performance.now();
+      gameState = "playing";
+    }
+
+    // GameState looping.
+    function gameLoop() {
+       if (gameState === "playing") {
+        drawGameScreen();
+      } else if (gameState === "gameover") {
+        drawGameOverScreen();
+      }
+      else {
+        drawStartScreen();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+
+
+</body>
+</html>
